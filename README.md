@@ -133,10 +133,8 @@
       服务提供者启动时: 向 /dubbo/com.foo.BarService/providers 目录下写入自己的 URL 地址
       服务消费者启动时: 订阅 /dubbo/com.foo.BarService/providers 目录下的提供者 URL 地址。并向 /dubbo/com.foo.BarService/consumers 目录下写入自己的 URL 地址
       监控中心启动时: 订阅 /dubbo/com.foo.BarService 目录下的所有提供者和消费者 URL 地址。
-4. dubbo的SPI
-
-  4.1 JDK的spi机制：
-  
+### 3.5 dubbo的SPI
+#### 1.JDK的spi机制
    SPI（Service Provider Interface）框架开发人员使用的一种技术,将服务接口与服务实现分离以达到解耦、大大提升了程序可扩展性的机制。引入服务提供者就是引入了spi接口的实现者，通过本地的      注册发现获取到具体的实现类，轻松可插拔。
    
      1. 当服务的提供者提供了一种接口的实现之后，需要在 Classpath 下的 META-INF/services/ 目录里创建一个以服务接口命名的文件，此文件记录了该 jar 包提供的服务接口的具体实现类。
@@ -155,9 +153,11 @@
     JDK SPI 在查找扩展实现类的过程中，需要遍历 SPI 配置文件中定义的所有实现类，该过程中会将这些实现类全部实例化，如果配置了多个实现类而只需要使用其中一个实现类时，
     就会生成不必要的对象，导致资源的浪费。
    
-  4.2 Dubbo的spi机制
+#### 2.Dubbo的spi机制
   
   ![image](https://user-images.githubusercontent.com/41152743/141287912-54dbca44-fe13-4b18-b93c-d8fddc313ef6.png)
+
+1. @SPI注解
 
     Dubbo SPI 不仅解决了JDK SPI资源浪费的问题，还对 SPI 配置文件扩展和修改。
     
@@ -169,10 +169,32 @@
         其中key被称为扩展名，不仅可以指定扩展名来选择相应的扩展实现，还可以更容易定位到问题。
      使用：通过注解@SPI 表明该接口是扩展接口,value指定了默认的扩展名称(通过 Dubbo SPI 加载接口实现时，如果没有明确指定扩展名，则默认会将@SPI注解的value 值作为扩展名)
      原理：dubbo-common 模块中的 extension 包中的ExtensionLoader用于解析处理@SPI注解 
-        
-        
-        
-        
-        
+  具体原理：
+      1. org.apache.dubbo.common.extension.ExtensionLoader#getExtensionLoader，从 EXTENSION_LOADERS 缓存中查找相应的 ExtensionLoader 实例；
+      
+      2. org.apache.dubbo.common.extension.ExtensionLoader#getExtension，在获取到的ExtensionLoader 实例中，根据传入的扩展名称从 cachedInstances 缓存中查找扩展实现的实例，
+         如果未找到，则将其实例化返回。调用：org.apache.dubbo.common.extension.ExtensionLoader#createExtension
+         该方法完成了 SPI 配置文件的查找以及相应扩展实现类的实例化，同时还实现了自动装配以及自动 Wrapper 包装等功能
+ 
+2. @Adaptive 注解与适配器：
+ 
+      例如，Dubbo中，ExtensionFactory 接口上有 @SPI 注解，AdaptiveExtensionFactory 实现类上有 @Adaptive 注解，该类不实现任何具体的功能，用于适配 ExtensionFactory 的 SpiExtensionFactory 和 SpringExtensionFactory 这两种实现，根据运行时的一些状态选择具体调用哪个实现。
+      1. org.apache.dubbo.common.extension.ExtensionLoader#loadClass，识别扩展实现类上的@Adaptive 注解，并将其类型缓存到cachedAdaptiveClass 这个实例字段上；
+      2. org.apache.dubbo.common.extension.ExtensionLoader#getAdaptiveExtensionClass，获取适配器实例，并将该实例缓存到cachedAdaptiveInstance 字段（Holder类型）中
+
+3. 自动包装与装配特性
+
+  自动包装：
+    Dubbo 中的一个扩展接口可能有多个扩展实现类，如果扩展类中包含一些相同的逻辑，在每个实现类中都写一遍，重复代码难以维护，提供自动包装特性，将多个扩展实现类的公共逻辑，抽象到Wrapper类中，Wrapper 类与普通的扩展实现类一样，也实现了扩展接口，在获取真正的扩展实现对象时，在其外面包装一层 Wrapper 对象。
+    1. org.apache.dubbo.common.extension.ExtensionLoader#loadClass，判断该扩展实现类是否包含拷贝构造函数（即构造函数只有一个参数且为扩展接口类型），如果包含，则为 Wrapper 类。
+    2. 将该类缓存到cachedWrapperClasses（Set<Class<?>>类型）这个实例字段中，然后使用时遍历全部 Wrapper 类并一层层包装到真正的扩展实例对象外层。
+   
+ 自动装配：org.apache.dubbo.common.extension.ExtensionLoader#injectExtension
+
+    Dubbo SPI 在拿到扩展实现类的对象（以及 Wrapper 类的对象）后调用该方法，扫描其全部setter方法，根据setter方法的名称及参数的类型加载相应的扩展实现，然后调用相应的 setter 方法填充属性。即，自动装配属性指的是在加载一个扩展接口时，将其依赖的扩展接口一并加载，并进行装配。
+
+4. @Activate注解与自动激活特性
+
+    以Dubbo中的Filter为例子，在某些场景中可能需要几个Filter扩展实现类协调工作，某些场景可能需要另外几个Filter扩展实现类协同工作，此时需要指定当前场景中哪些filter实现是可用的，即需要用到@Active注解。
         
         
