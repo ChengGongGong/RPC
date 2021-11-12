@@ -191,10 +191,61 @@
    
  自动装配：org.apache.dubbo.common.extension.ExtensionLoader#injectExtension
 
-    Dubbo SPI 在拿到扩展实现类的对象（以及 Wrapper 类的对象）后调用该方法，扫描其全部setter方法，根据setter方法的名称及参数的类型加载相应的扩展实现，然后调用相应的 setter 方法填充属性。即，自动装配属性指的是在加载一个扩展接口时，将其依赖的扩展接口一并加载，并进行装配。
+    Dubbo SPI 在拿到扩展实现类的对象（以及 Wrapper 类的对象）后调用该方法，扫描其全部setter方法，
+    根据setter方法的名称及参数的类型加载相应的扩展实现，
+    然后调用相应的 setter 方法填充属性。
+    即自动装配属性指的是在加载一个扩展接口时，将其依赖的扩展接口一并加载，并进行装配。
 
 4. @Activate注解与自动激活特性
 
     以Dubbo中的Filter为例子，在某些场景中可能需要几个Filter扩展实现类协调工作，某些场景可能需要另外几个Filter扩展实现类协同工作，此时需要指定当前场景中哪些filter实现是可用的，即需要用到@Active注解。
-        
-        
+    
+        @Activate 注解标注在扩展实现类上，有 group、value 以及 order 三个属性：
+          group 属性：修饰的实现类是在 Provider 端被激活还是在 Consumer 端被激活。
+          value 属性：修饰的实现类只在 URL 参数中出现指定的 key 时才会被激活。
+          order 属性：用来确定扩展实现类的排序
+   1. org.apache.dubbo.common.extension.ExtensionLoader#loadClass，将包含@Activate注解的实现类缓存到cachedActivates集合中；
+   2. ExtensionLoader#getActivateExtension，使用cachedActivates集合，首先获取激活的扩展集合，需要满足以下条件：
+        1. 在 cachedActivates 集合中存在；
+        2. @Activate 注解指定的 group 属性与当前 group 匹配；
+        3. 扩展名没有出现在 values 中（即未在配置中明确指定，也未在配置中明确指定删除）；
+        4. URL 中出现了 @Activate 注解中指定的 Key。
+      然后，按照注解中的order属性对激活的扩展集合进行排序，最后，按序添加自定义扩展实现类的对象，自定义的扩展添加到默认扩展集合后面
+
+#### 3.Dubbo的时间轮
+  1. 时间轮：一种高效的、批量管理定时任务的调度模型。
+
+    环形结构，类似于时钟，分为很多槽，一个槽代表一个时间间隔，每个槽使用双向链表存储定时任务。
+    指针周期性的跳动，跳动到一个槽位，就执行该槽位的定时任务。
+    单层时间轮的容量和精度都是有限的，对于精度要求特别高、时间跨度特别大或是海量定时任务需要调度的场景，通常会使用多级时间轮以及持久化存储与时间轮结合
+
+  2. Dubbo的时间轮：dubbo-common 模块的org.apache.dubbo.common.timer
+
+  核心接口：
+
+      TimerTask 接口：所有的定时任务需要实现该接口，定义了一个run()方法，入参是TimeOut对象；
+      Timeout接口：通过Timeout对象，可以查看定时任务的状态、操作定时任务，与TimeTask对象一一对应；
+      Timer接口：定义了定时器的基本行为，核心方法是newTimeout()，提条一个定时任务(TimeeTask)并返回关联的Timeout对象。
+  具体实现：
+
+    HashedWheelTimeout:Timeout 接口的唯一实现，是 HashedWheelTimer 的内部类,主要用于：
+
+      1. 时间轮中双向链表的节点，即定时任务 TimerTask 在 HashedWheelTimer 中的容器。
+      2. 定时任务 TimerTask 提交到 HashedWheelTimer 之后返回的句柄（Handle），用于在时间轮外部查看和控制定时任务。
+
+    HashedWheelBucket：HashedWheelTimer 的内部类，是时间轮中的一个槽，主要用于：
+
+      1. 用于缓存和管理双向链表的容器，双向链表中的每一个节点就是一个 HashedWheelTimeout 对象，也就关联了一个 TimerTask 定时任务
+    
+   HashedWheelTimer：Timer 接口的实现，它通过时间轮算法实现了一个定时器。
+      
+      1. 根据当前时间轮指针选定对应的槽（HashedWheelBucket）；
+      2. 从双向链表的头部开始迭代，对每个定时任务（HashedWheelTimeout）进行计算，属于当前时钟周期则取出运行，不属于则将其剩余的时钟周期数减一操作。
+  
+    原理：
+      1. org.apache.dubbo.common.timer.HashedWheelTimer#newTimeout：用于提交定时任务，
+          首先确定时间轮的 startTime 字段；
+          然后启动 workerThread 线程，开始执行 worker 任务；
+          最后根据startTime 计算该定时任务的 deadline 字段，并将定时任务封装成 HashedWheelTimeout 并添加到 timeouts 队列。
+
+
