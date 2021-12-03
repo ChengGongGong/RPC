@@ -135,6 +135,7 @@
       监控中心启动时: 订阅 /dubbo/com.foo.BarService 目录下的所有提供者和消费者 URL 地址。
 ### 3.5 dubbo的SPI
 #### 1.JDK的spi机制
+
    SPI（Service Provider Interface）框架开发人员使用的一种技术,将服务接口与服务实现分离以达到解耦、大大提升了程序可扩展性的机制。引入服务提供者就是引入了spi接口的实现者，通过本地的      注册发现获取到具体的实现类，轻松可插拔。
    
      1. 当服务的提供者提供了一种接口的实现之后，需要在 Classpath 下的 META-INF/services/ 目录里创建一个以服务接口命名的文件，此文件记录了该 jar 包提供的服务接口的具体实现类。
@@ -161,15 +162,16 @@
 
     Dubbo SPI 不仅解决了JDK SPI资源浪费的问题，还对 SPI 配置文件扩展和修改。
     
-      首先：Dubbo 按照 SPI 配置文件的用途，将其分成了三类目录：
-        META-INF/services/ 目录：该目录下的 SPI 配置文件用来兼容 JDK SPI 。
-        META-INF/dubbo/ 目录：该目录用于存放用户自定义 SPI 配置文件。
-        META-INF/dubbo/internal/ 目录：该目录用于存放 Dubbo 内部使用的 SPI 配置文件。
-     然后：SPI 配置文件改成了 KV 格式：
-        其中key被称为扩展名，不仅可以指定扩展名来选择相应的扩展实现，还可以更容易定位到问题。
-     使用：通过注解@SPI 表明该接口是扩展接口,value指定了默认的扩展名称(通过 Dubbo SPI 加载接口实现时，如果没有明确指定扩展名，则默认会将@SPI注解的value 值作为扩展名)
-     原理：dubbo-common 模块中的 extension 包中的ExtensionLoader用于解析处理@SPI注解 
+        首先：Dubbo 按照 SPI 配置文件的用途，将其分成了三类目录：
+          META-INF/services/ 目录：该目录下的 SPI 配置文件用来兼容 JDK SPI 。
+          META-INF/dubbo/ 目录：该目录用于存放用户自定义 SPI 配置文件。
+          META-INF/dubbo/internal/ 目录：该目录用于存放 Dubbo 内部使用的 SPI 配置文件。
+      然后：SPI 配置文件改成了 KV 格式：
+          其中key被称为扩展名，不仅可以指定扩展名来选择相应的扩展实现，还可以更容易定位到问题。
+      使用：通过注解@SPI 表明该接口是扩展接口,value指定了默认的扩展名称(通过 Dubbo SPI 加载接口实现时，如果没有明确指定扩展名，则默认会将@SPI注解的value 值作为扩展名)
+      原理：dubbo-common 模块中的 extension 包中的ExtensionLoader用于解析处理@SPI注解 
   具体原理：
+  
       1. org.apache.dubbo.common.extension.ExtensionLoader#getExtensionLoader，从 EXTENSION_LOADERS 缓存中查找相应的 ExtensionLoader 实例；
       
       2. org.apache.dubbo.common.extension.ExtensionLoader#getExtension，在获取到的ExtensionLoader 实例中，根据传入的扩展名称从 cachedInstances 缓存中查找扩展实现的实例，
@@ -185,25 +187,28 @@
 3. 自动包装与装配特性
 
   自动包装：
+  
     Dubbo 中的一个扩展接口可能有多个扩展实现类，如果扩展类中包含一些相同的逻辑，在每个实现类中都写一遍，重复代码难以维护，提供自动包装特性，将多个扩展实现类的公共逻辑，抽象到Wrapper类中，Wrapper 类与普通的扩展实现类一样，也实现了扩展接口，在获取真正的扩展实现对象时，在其外面包装一层 Wrapper 对象。
+    
     1. org.apache.dubbo.common.extension.ExtensionLoader#loadClass，判断该扩展实现类是否包含拷贝构造函数（即构造函数只有一个参数且为扩展接口类型），如果包含，则为 Wrapper 类。
+    
     2. 将该类缓存到cachedWrapperClasses（Set<Class<?>>类型）这个实例字段中，然后使用时遍历全部 Wrapper 类并一层层包装到真正的扩展实例对象外层。
    
  自动装配：org.apache.dubbo.common.extension.ExtensionLoader#injectExtension
 
-    Dubbo SPI 在拿到扩展实现类的对象（以及 Wrapper 类的对象）后调用该方法，扫描其全部setter方法，
-    根据setter方法的名称及参数的类型加载相应的扩展实现，
-    然后调用相应的 setter 方法填充属性。
-    即自动装配属性指的是在加载一个扩展接口时，将其依赖的扩展接口一并加载，并进行装配。
+        Dubbo SPI 在拿到扩展实现类的对象（以及 Wrapper 类的对象）后调用该方法，扫描其全部setter方法，
+        根据setter方法的名称及参数的类型加载相应的扩展实现，
+        然后调用相应的 setter 方法填充属性。
+        即自动装配属性指的是在加载一个扩展接口时，将其依赖的扩展接口一并加载，并进行装配。
 
 4. @Activate注解与自动激活特性
 
     以Dubbo中的Filter为例子，在某些场景中可能需要几个Filter扩展实现类协调工作，某些场景可能需要另外几个Filter扩展实现类协同工作，此时需要指定当前场景中哪些filter实现是可用的，即需要用到@Active注解。
     
-        @Activate 注解标注在扩展实现类上，有 group、value 以及 order 三个属性：
-          group 属性：修饰的实现类是在 Provider 端被激活还是在 Consumer 端被激活。
-          value 属性：修饰的实现类只在 URL 参数中出现指定的 key 时才会被激活。
-          order 属性：用来确定扩展实现类的排序
+            @Activate 注解标注在扩展实现类上，有 group、value 以及 order 三个属性：
+              group 属性：修饰的实现类是在 Provider 端被激活还是在 Consumer 端被激活。
+              value 属性：修饰的实现类只在 URL 参数中出现指定的 key 时才会被激活。
+              order 属性：用来确定扩展实现类的排序
    1. org.apache.dubbo.common.extension.ExtensionLoader#loadClass，将包含@Activate注解的实现类缓存到cachedActivates集合中；
    2. ExtensionLoader#getActivateExtension，使用cachedActivates集合，首先获取激活的扩展集合，需要满足以下条件：
         1. 在 cachedActivates 集合中存在；
