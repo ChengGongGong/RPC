@@ -13,6 +13,8 @@
   6. 服务端Stub得到方法执行结果并将将其序列化:RpcResponse发送至消费方；
   7. 客户端Stub接收到消息并将其反序列化为Java实体类对象：RpcResponse，至此得到最终结果
 ![image](https://user-images.githubusercontent.com/41152743/140736645-9d59152c-c279-4810-bb69-6478923c87ad.png)
+  重要点：
+    服务注册发布与订阅、远程通信协议与序列化、RPC调用方式(同步 Sync、异步 Future、回调 Callback和单向 Oneway)、线程模型、负载均衡、动态代理
  ## 3.Dubbo
  具体文档见官网：https://dubbo.apache.org/zh/docs/v2.7/
  ### 3.1 解决的问题
