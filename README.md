@@ -268,6 +268,30 @@
     即使在任务执行过程中出现了GC、IO阻塞等情况导致任务延迟或卡住，也不会导致任务堆积。
       1. 失败重试：例如：Provider 向注册中心进行注册失败时的重试操作，
       2. 周期性定时任务：例如：定期发送心跳请求，请求超时的处理
-   
-  
+
+#### 4.Dubbo的Registry
+1. 相关接口
+
+    Node接口：表示 Provider 和 Consumer 节点，以及注册中心节点；
+    RegistryService 接口：抽象注册了服务的基本行为
+![image](https://user-images.githubusercontent.com/41152743/144981690-5f25ba08-b259-4888-bc1a-dcda3c51610b.png)
+    Registry 接口：表示的就是一个拥有注册中心能力的节点，继承了 RegistryService 接口和 Node 接口；
+    RegistryFactory 接口： Registry 的工厂接口，负责创建 Registry 对象；
+    RegistryFactoryWrapper：RegistryFactory 接口的 Wrapper 类，会将register()、subscribe() 等事件通知到 RegistryServiceListener 监听器。
+2. AbstractRegistry-本地缓存
+![image](https://user-images.githubusercontent.com/41152743/144987755-04bc5054-659a-45cd-9e72-1a9e1f0cc946.png)
+
+    1.org.apache.dubbo.registry.support.AbstractRegistry#notify(org.apache.dubbo.common.URL, org.apache.dubbo.registry.NotifyListener, java.util.List<org.apache.dubbo.common.URL>) 
+    
+        第一个URL参数表示的是Consumer，第二个NotifyListener是第一个参数对应的监听器，第三个参数是Provider端暴露的URL的全量数据
+        当 Provider 端暴露的 URL 发生变化时，ZooKeeper 等服务发现组件会通知 Consumer 端的 Registry 组件，Registry 组件会调用 notify() 方法，
+        被通知的 Consumer 能匹配到所有 Provider 的 URL 列表并写入 properties 集合中
+    2. org.apache.dubbo.registry.support.AbstractRegistry#getCacheUrls
+    
+        在网络抖动等原因而导致订阅失败时，Consumer 端的 Registry 就可以调用 getCacheUrls() 方法获取本地缓存，从而得到最近注册的 Provider URL；
+        AbstractRegistry 通过本地缓存提供了一种容错机制，保证了服务的可靠性。
+    3. 注册/订阅、恢复/销毁，操作当前节点要注册的 URL 缓存到的registered 集合    
+ 2. org.apache.dubbo.registry.support.FailbackRegistry-重试机制
+ 
+    1. 
 
