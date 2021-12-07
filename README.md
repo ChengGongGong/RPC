@@ -293,5 +293,34 @@
     3. 注册/订阅、恢复/销毁，操作当前节点要注册的 URL 缓存到的registered 集合    
  2. org.apache.dubbo.registry.support.FailbackRegistry-重试机制
  
-    1. 
-
+    1. org.apache.dubbo.registry.support.FailbackRegistry#register
+      
+        1. 根据 registryUrl 中 accepts 参数指定的匹配模式，决定是否接受当前要注册的 Provider URL；
+        2. 调用父类 AbstractRegistry 的 register() 方法，将 Provider URL 写入 registered 集合中；
+        3. 调用 removeFailedRegistered() 方法和 removeFailedUnregistered() 方法，将该 Provider URL 从 failedRegistered 集合和 failedUnregistered 集合中删除，并停止相关的重试任务；
+        4. 调用 doRegister() 方法，由子类实现，每个子类只负责接入一个特定的服务发现组件。
+        5. 在 doRegister() 方法出现异常的时候，判断是否直接抛出异常，否的话，创建重试任务并添加到 failedRegistered 集合中，然后提交到时间轮中。
+ 3.  ZooKeeper 注册中心实现-官方推荐
+    
+    1. ZookeeperRegistryFactory：
+![image](https://user-images.githubusercontent.com/41152743/145003821-0d20a4ac-8962-4660-9885-400a39ef8154.png)
+    
+    2. ZookeeperTransporter---org.apache.dubbo.remoting.zookeeper.ZookeeperTransporter
+    
+      只负责一件事情，那就是创建 ZookeeperClient 对象，其中AbstractZookeeperTransporter 的核心功能：
+          缓存 ZookeeperClient 实例；
+          在某个 Zookeeper 节点无法连接时，切换到备用 Zookeeper 地址。
+    3. ZookeeperClient： Dubbo 封装的 Zookeeper 客户端，该接口定义了大量的方法，都是用来与 Zookeeper 进行交互的。
+          其中,AbstractZookeeperClient 作为 ZookeeperClient 接口的抽象实现:
+           1. 缓存当前 ZookeeperClient 实例创建的持久 ZNode 节点；
+           2. 管理当前 ZookeeperClient 实例添加的各类监听器,包括三种类型的监听器：
+                StateListener(负责监听Dubbo 与 Zookeeper 集群的连接状态)、
+                DataListener(主要监听某个节点存储的数据变化) 、
+                ChildListener (主要监听某个 ZNode 节点下的子节点变化。)；
+           3. 管理当前 ZookeeperClient 的运行状态。
+    4. ZookeeperRegistry：org.apache.dubbo.registry.zookeeper.ZookeeperRegistry#ZookeeperRegistry
+           1. 通过 ZookeeperTransporter 创建 ZookeeperClient 实例并连接到 Zookeeper 集群，同时还会添加一个连接状态的监听器
+    
+    
+    
+    
