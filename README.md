@@ -324,6 +324,21 @@
     ![image](https://user-images.githubusercontent.com/41152743/145134281-dfd44b8a-78d0-4720-a5d3-0fb2354608d7.png)
            3. doSubscribe()方法：
               通过 ZookeeperClient 在指定的 path 上添加 ChildListener 监听器，当订阅的节点发生变化时，会通过 ChildListener 监听器触发 notify() 方法，在 notify() 方法中会触发传入的 NotifyListener 监听器。
+
+#### 5.Dubbo的Remoting：Exchange、Transport和Serialize (dubbo-remoting-api 模块)
+1.相关接口
     
-    
-    
+     1. buffer包：定义了缓冲区相关的接口、抽象类以及实现类；
+     2. exchange包：抽象了 Request 和 Response 两个概念，并为其添加了很多特性；
+     3. transport 包：对网络传输层的抽象，但它只负责抽象单向消息的传输；
+     4. 其他接口：Endpoint、Channel、Transporter、Dispatcher 等顶层接口，该模块的核心接口
+2. 传输层核心接口
+
+     1. Endpoint
+        通过一个 ip 和 port 唯一确定一个端点，两个端点之间会创建 TCP 连接，可以双向传输数据；
+        dubbo将Endpoint 之间的 TCP 连接抽象为通道（Channel），发起请求的 Endpoint 抽象为客户端（Client），将接收请求的 Endpoint 抽象为服务端。
+     2. channel接口：继承了 Endpoint 接口，也具备开关状态以及发送数据的能力；另一个是可以在 Channel 上附加 KV 属性。
+     3. ChannelHandler接口：注册在 Channel 上的消息处理器，可以处理 Channel 的连接建立以及连接断开事件，还可以处理读取到的数据、发送的数据以及捕获到的异常
+     4. Client 和 RemotingServer 两个接口：分别抽象了客户端和服务端，两者都继承了 Channel、Resetable 等接口，也就是说两者都具备了读写数据能力。
+     5. Transporter 接口： 在 Client 和 Server 之上又封装了一层Transporter 接口，从而确定使用何种nio库，例如：Netty、Mina、Grizzly ；
+     6. Transporters类：门面类，其中封装了 Transporter 对象的创建（通过 Dubbo SPI）以及 ChannelHandler 的处理
