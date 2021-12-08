@@ -319,8 +319,11 @@
                 ChildListener (主要监听某个 ZNode 节点下的子节点变化。)；
            3. 管理当前 ZookeeperClient 的运行状态。
     4. ZookeeperRegistry：org.apache.dubbo.registry.zookeeper.ZookeeperRegistry#ZookeeperRegistry
-           1. 通过 ZookeeperTransporter 创建 ZookeeperClient 实例并连接到 Zookeeper 集群，同时还会添加一个连接状态的监听器
-    
+           1. 通过 ZookeeperTransporter 创建 ZookeeperClient 实例并连接到 Zookeeper 集群，同时还会添加一个连接状态的监听器；
+           2. doRegister() 方法和 doUnregister() 方法的实现都是通过 ZookeeperClient 找到合适的路径，然后创建（或删除）相应的 ZNode 节点，并根据dynamic参数决定是临时还是持久节点
+    ![image](https://user-images.githubusercontent.com/41152743/145134281-dfd44b8a-78d0-4720-a5d3-0fb2354608d7.png)
+           3. doSubscribe()方法：
+              通过 ZookeeperClient 在指定的 path 上添加 ChildListener 监听器，当订阅的节点发生变化时，会通过 ChildListener 监听器触发 notify() 方法，在 notify() 方法中会触发传入的 NotifyListener 监听器。
     
     
     
