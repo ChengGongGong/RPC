@@ -405,7 +405,31 @@
                   cached： 缓存线程池，空闲一分钟自动删除，需要时重建。
                   limited： 可伸缩线程池，但池中的线程数只会增长不会收缩。
                   eager： 优先创建Worker线程池，在任务数量大于corePoolSize但是小于maximumPoolSize时，优先创建Worker来处理任务。当任务数量大于maximumPoolSize时，将任务放入阻塞队列中。阻塞队列充满时抛出RejectedExecutionException。
-      
+    7. ThreadlessExecutor：消费端线程池优化，内部不管理任何线程
+    
+        1. 简介：org.apache.dubbo.common.threadpool.ThreadlessExecutor
+          调用 ThreadlessExecutor 的execute() 方法，将任务提交给这个线程池，但是提交的任务不会被任何调度到任何线程执行，而是存储到阻塞队列中，
+          只有当其他线程调用ThreadlessExecutor.waitAndDrain() 方法时才会真正执行(任务执行与调用waitAndDrain()是同一个线程)
+        2. 引入原由：
+          1. dubbo 2.7.5之前的版本，WrappedChannelHandler 中会为每个连接启动一个线程池。消费端的线程池模型如下：
+  ![image](https://user-images.githubusercontent.com/41152743/145351165-388d5048-a567-4cf6-adcd-b4956ac07742.png)
+  
+              1. 业务线程发出请求，拿到一个 Future 实例；
+              2. 业务线程紧接着调用 Future.get() 阻塞等待请求结果返回；
+              3. 当业务数据返回后，交由独立的 Consumer 端线程池进行反序列化等解析处理，
+              4. 待处理完成之后，将业务结果通过 Future.set() 方法返回给业务线程。
+          弊端：
+              Consumer 端会维护一个线程池，而且线程池是按照连接隔离的，即每个连接独享一个线程池，当面临需要消费大量服务且并发数比较大的场景时，会出现消费端线程数分配过多的问题，导致线程调度消耗过多 CPU ，也可能因为线程创建过多而导致 OOM。
+              
+         2. Dubbo 在 2.7.5 版本之后，引入了 ThreadlessExecutor，修改线程模型如下：
+![image](https://user-images.githubusercontent.com/41152743/145351765-4662132b-1ece-4a37-9742-21a3ab815bb2.png)
+
+              1. 业务线程发出请求之后，拿到一个 Future 对象。
+              2. 业务线程会调用 ThreadlessExecutor.waitAndDrain() 方法，waitAndDrain() 方法会在阻塞队列上等待；
+              3. 当收到响应时，IO 线程会生成一个任务，填充到 ThreadlessExecutor 队列中；
+              4. 业务线程将 Task 取出并在本线程中执行：反序列化业务数据并set 到 Future，此时 waitAndDrain() 方法返回；
+              5. 业务线程从 Future 中拿到结果值。
+        
       
       
       
