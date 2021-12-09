@@ -343,20 +343,22 @@
      5. Transporter 接口： 在 Client 和 Server 之上又封装了一层Transporter 接口，从而确定使用何种nio库，例如：Netty、Mina、Grizzly ；
      6. Transporters类：门面类，其中封装了 Transporter 对象的创建（通过 Dubbo SPI）以及 ChannelHandler 的处理
 3. Transport层
-    
-      1. AbstractPeer：同时实现了 Endpoint 接口和 ChannelHandler 接口，也是 AbstractChannel、AbstractEndpoint 抽象类的父类
+
+    1. AbstractPeer：同时实现了 Endpoint 接口和 ChannelHandler 接口，也是 AbstractChannel、AbstractEndpoint 抽象类的父类
 
 ![image](https://user-images.githubusercontent.com/41152743/145322602-d4dc3abb-8940-4215-b349-b6dcd1d7fec1.png)
           AbstractChannel、AbstractServer、AbstractClient 都是要关联一个 ChannelHandler 对象的。
-      2. AbstractServer 是对服务端的抽象，实现了服务端的公共逻辑。
-      
-![image](https://user-images.githubusercontent.com/41152743/145171443-98b585fd-c1b8-420b-bb7b-42a90f302c8d.png)
-           1. org.apache.dubbo.remoting.transport.AbstractServer#AbstractServer，构造方法中根据url初始化参数，调用子类的doOpen()方法完成server的启动。
-           2. 例如：org.apache.dubbo.remoting.transport.netty4.NettyServer#doOpen NettyServer的启动，主要是添加四个核心channelHandler：
+          
+    2. AbstractServer 是对服务端的抽象，实现了服务端的公共逻辑。
+ ![image](https://user-images.githubusercontent.com/41152743/145171443-98b585fd-c1b8-420b-bb7b-42a90f302c8d.png)
+ 
+            1. org.apache.dubbo.remoting.transport.AbstractServer#AbstractServer，构造方法中根据url初始化参数，调用子类的doOpen()方法完成server的启动。
+            2. 例如：org.apache.dubbo.remoting.transport.netty4.NettyServer#doOpen NettyServer的启动，主要是添加四个核心channelHandler：
                 1. InternalDecoder、InternalEncoder；
                 2. IdleStateHandler：Netty 提供的一个工具型 ChannelHandler，用于定时心跳请求的功能或是自动关闭长时间空闲连接的功能
                 3. NettyServerHandler：继承了 ChannelDuplexHandler，Netty 提供的一个同时处理 Inbound 数据和 Outbound 数据的 ChannelHandler
-      3. AbstractClient是对客户端的封装
+                
+    3. AbstractClient是对客户端的封装   
 ![image](https://user-images.githubusercontent.com/41152743/145320464-e2774f2d-d235-4428-98d9-141d174f3aaa.png)
 
           1. org.apache.dubbo.remoting.transport.AbstractClient#AbstractClient，构造方法中解析url中的参数初始化executor，调用子类的doOpen()方法完成client端的启动
@@ -365,18 +367,33 @@
                  2. IdleStateHandler：Netty 提供的一个工具型 ChannelHandler，用于定时心跳请求的功能或是自动关闭长时间空闲连接的功能
                  3. NettyClientHandler：继承了 ChannelDuplexHandler，Netty 提供的一个同时处理 Inbound 数据和 Outbound 数据的 ChannelHandler
           3.创建底层连接，调用子类的doConnect()方法
-      4. channel继承路线
+          
+    4. channel继承路线
       
           1. org.apache.dubbo.remoting.transport.netty4.NettyChannel
 ![image](https://user-images.githubusercontent.com/41152743/145323269-4a8854f2-e7b6-4669-9925-dbe4d6c8587b.png)
             org.apache.dubbo.remoting.transport.netty4.NettyChannel#send：通过底层关联的 Netty 框架 Channel，将数据发送到对端。
-      5. channelhandler继承路线
+            
+    5. channelhandler继承路线
         
           1. ChannelHandlerDispatcher类：负责将多个 ChannelHandler 对象聚合成一个 ChannelHandler 对象。
           2. ChannelHandlerAdapter类： ChannelHandler 的一个空实现
-          3. ChannelHandlerDelegate接口： 继承ChannelHandler接口，对ChannelHandler 对象的封装
-      
-      6. ExecutorRepository：负责创建并管理 Dubbo 中的线程池，默认实现DefaultExecutorRepository 
+          3. ChannelHandlerDelegate接口： 继承ChannelHandler接口，对ChannelHandler 对象的封装，它的两个实现类 AbstractChannelHandlerDelegate 和 WrappedChannelHandler 
+          4. AbstractChannelHandlerDelegate有三个实现类：
+            1. MultiMessageHandler：专门处理 MultiMessage 的 ChannelHandler 实现，
+            2. DecodeHandler：专门处理 Decodeable 的 ChannelHandler 实现
+            3. HeartbeatHandler：专门处理心跳消息的 ChannelHandler 实现，received() 方法接收心跳请求的时候，会生成相应的心跳响应并返回；在收到心跳响应的时候，会打印相应的日志；在收到其他类型的消息时，会传递给底层的 ChannelHandler 对象进行处理
+          5. WrappedChannelHandler ：决定了 Dubbo 以何种线程模型处理收到的事件和消息，即消息派发机制
+             1. org.apache.dubbo.remoting.Dispatcher，每个 WrappedChannelHandler 实现类的对象都由一个相应的 Dispatcher 实现类创建；默认是AllDispatcher
+             2. 具体派发策略如下：
+                all 所有消息都派发到线程池，包括请求，响应，连接事件，断开事件，心跳等。
+                direct 所有消息都不派发到线程池，全部在 IO 线程上直接执行。
+                message 只有请求响应消息派发到线程池，其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                execution 只有请求消息派发到线程池，不含响应，响应和其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                connection 在 IO 线程上，将连接断开事件放入队列，有序逐个执行，其它消息派发到线程池；
+           6.org.apache.dubbo.remoting.transport.netty4.NettyServer#NettyServer，在其构造函数中对传入的 ChannelHandler 对象进行修饰：
+                MultiMessageHandler->HeartbeatHandler->AllChannelHandler->DecodeHandler
+    6. ExecutorRepository：负责创建并管理 Dubbo 中的线程池，默认实现DefaultExecutorRepository 
       
            1. 维护了一个 ConcurrentMap<String, ConcurrentMap<Integer, ExecutorService>> 集合（data 字段）缓存已有的线程池，
                 第一层 Key 值表示线程池属于 Provider 端还是 Consumer 端，第二层 Key 值表示线程池关联服务的端口。
