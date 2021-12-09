@@ -344,18 +344,50 @@
      6. Transporters类：门面类，其中封装了 Transporter 对象的创建（通过 Dubbo SPI）以及 ChannelHandler 的处理
 3. Transport层
     
-      1. AbstractServer 是对服务端的抽象，实现了服务端的公共逻辑。
+      1. AbstractPeer：同时实现了 Endpoint 接口和 ChannelHandler 接口，也是 AbstractChannel、AbstractEndpoint 抽象类的父类
+
+![image](https://user-images.githubusercontent.com/41152743/145322602-d4dc3abb-8940-4215-b349-b6dcd1d7fec1.png)
+          AbstractChannel、AbstractServer、AbstractClient 都是要关联一个 ChannelHandler 对象的。
+      2. AbstractServer 是对服务端的抽象，实现了服务端的公共逻辑。
+      
 ![image](https://user-images.githubusercontent.com/41152743/145171443-98b585fd-c1b8-420b-bb7b-42a90f302c8d.png)
            1. org.apache.dubbo.remoting.transport.AbstractServer#AbstractServer，构造方法中根据url初始化参数，调用子类的doOpen()方法完成server的启动。
-      2. ExecutorRepository：负责创建并管理 Dubbo 中的线程池，默认实现DefaultExecutorRepository
+           2. 例如：org.apache.dubbo.remoting.transport.netty4.NettyServer#doOpen NettyServer的启动，主要是添加四个核心channelHandler：
+                1. InternalDecoder、InternalEncoder；
+                2. IdleStateHandler：Netty 提供的一个工具型 ChannelHandler，用于定时心跳请求的功能或是自动关闭长时间空闲连接的功能
+                3. NettyServerHandler：继承了 ChannelDuplexHandler，Netty 提供的一个同时处理 Inbound 数据和 Outbound 数据的 ChannelHandler
+      3. AbstractClient是对客户端的封装
+![image](https://user-images.githubusercontent.com/41152743/145320464-e2774f2d-d235-4428-98d9-141d174f3aaa.png)
+
+          1. org.apache.dubbo.remoting.transport.AbstractClient#AbstractClient，构造方法中解析url中的参数初始化executor，调用子类的doOpen()方法完成client端的启动
+          2. 例如：org.apache.dubbo.remoting.transport.netty4.NettyClient#doOpen，添加四个核心的channelHandler
+                 1. InternalDecoder、InternalEncoder；
+                 2. IdleStateHandler：Netty 提供的一个工具型 ChannelHandler，用于定时心跳请求的功能或是自动关闭长时间空闲连接的功能
+                 3. NettyClientHandler：继承了 ChannelDuplexHandler，Netty 提供的一个同时处理 Inbound 数据和 Outbound 数据的 ChannelHandler
+          3.创建底层连接，调用子类的doConnect()方法
+      4. channel继承路线
+      
+          1. org.apache.dubbo.remoting.transport.netty4.NettyChannel
+![image](https://user-images.githubusercontent.com/41152743/145323269-4a8854f2-e7b6-4669-9925-dbe4d6c8587b.png)
+            org.apache.dubbo.remoting.transport.netty4.NettyChannel#send：通过底层关联的 Netty 框架 Channel，将数据发送到对端。
+      5. channelhandler继承路线
+        
+          1. ChannelHandlerDispatcher类：负责将多个 ChannelHandler 对象聚合成一个 ChannelHandler 对象。
+          2. ChannelHandlerAdapter类： ChannelHandler 的一个空实现
+          3. ChannelHandlerDelegate接口： 继承ChannelHandler接口，对ChannelHandler 对象的封装
+      
+      6. ExecutorRepository：负责创建并管理 Dubbo 中的线程池，默认实现DefaultExecutorRepository 
+      
            1. 维护了一个 ConcurrentMap<String, ConcurrentMap<Integer, ExecutorService>> 集合（data 字段）缓存已有的线程池，
                 第一层 Key 值表示线程池属于 Provider 端还是 Consumer 端，第二层 Key 值表示线程池关联服务的端口。
            2. org.apache.dubbo.common.threadpool.manager.DefaultExecutorRepository#createExecutor
-              ThreadPool 接口@SPI 注解修饰，默认使用 FixedThreadPool 实现，其中getExecutor() 方法被 @Adaptive 注解修饰，动态生成的适配器类会优先根据 URL 中的 threadpool 参数选择 ThreadPool 的扩展实现。dubbo支持的线程池：
-              fixed ：固定大小线程池，启动时建立线程，不关闭，一直持有。
-              cached： 缓存线程池，空闲一分钟自动删除，需要时重建。
-              limited： 可伸缩线程池，但池中的线程数只会增长不会收缩。
-              eager： 优先创建Worker线程池，在任务数量大于corePoolSize但是小于maximumPoolSize时，优先创建Worker来处理任务。当任务数量大于maximumPoolSize时，将任务放入阻塞队列中。阻塞队列充满时抛出RejectedExecutionException。
+           
+                  ThreadPool 接口@SPI 注解修饰，默认使用 FixedThreadPool 实现，
+                  其中getExecutor() 方法被 @Adaptive 注解修饰，动态生成的适配器类会优先根据 URL 中的 threadpool 参数选择 ThreadPool 的扩展实现。dubbo支持的线程池：
+                  fixed ：固定大小线程池，启动时建立线程，不关闭，一直持有。
+                  cached： 缓存线程池，空闲一分钟自动删除，需要时重建。
+                  limited： 可伸缩线程池，但池中的线程数只会增长不会收缩。
+                  eager： 优先创建Worker线程池，在任务数量大于corePoolSize但是小于maximumPoolSize时，优先创建Worker来处理任务。当任务数量大于maximumPoolSize时，将任务放入阻塞队列中。阻塞队列充满时抛出RejectedExecutionException。
       
       
       
