@@ -334,7 +334,7 @@
      4. 其他接口：Endpoint、Channel、Transporter、Dispatcher 等顶层接口，该模块的核心接口
 2. 传输层核心接口
 
-     1. Endpoint
+     1. Endpoint：
         通过一个 ip 和 port 唯一确定一个端点，两个端点之间会创建 TCP 连接，可以双向传输数据；
         dubbo将Endpoint 之间的 TCP 连接抽象为通道（Channel），发起请求的 Endpoint 抽象为客户端（Client），将接收请求的 Endpoint 抽象为服务端。
      2. channel接口：继承了 Endpoint 接口，也具备开关状态以及发送数据的能力；另一个是可以在 Channel 上附加 KV 属性。
@@ -429,10 +429,53 @@
               3. 当收到响应时，IO 线程会生成一个任务，填充到 ThreadlessExecutor 队列中；
               4. 业务线程将 Task 取出并在本线程中执行：反序列化业务数据并set 到 Future，此时 waitAndDrain() 方法返回；
               5. 业务线程从 Future 中拿到结果值。
+4. Exchange层
+
+    Dubbo Remoting 层中的最顶层，将信息交换行为抽象成Exchange层，并封装了请求-响应的语义，关注一问一答的交互模式，实现同步转异步。
+    
+    1. Request 和 Response
+
+        Request的核心字段如下：
+ ![image](https://user-images.githubusercontent.com/41152743/145355135-7423a691-97a5-429d-be4a-0fc013bb1b88.png)
+        Resopnse的核心字段如下：
+![image](https://user-images.githubusercontent.com/41152743/145355528-146a7340-c19e-4bcc-934e-f6040691351e.png)
+
+     2. ExchangeChannel接口： Channel 接口之上抽象了 Exchange 层的网络连接。 
+![image](https://user-images.githubusercontent.com/41152743/145355798-0ada9d89-58de-45c4-8fb1-5c8666459bb1.png)
+
+        1. HeaderExchangeChannel类：是ExchangeChannel 的实现，其send() 方法和 request() 方法的实现都是依赖底层修饰的这个 Channel 对象实现的：
         
-      
-      
-      
-      
+            1. HeaderExchangeChannel.request() 方法中完成 DefaultFuture 对象的创建，包括创建请求相应超时的定时任务，加入时间轮中；
+            2. 将请求通过底层的 Dubbo Channel 发送出去，发送过程中会触发沿途 ChannelHandler 的 sent() 方法，
+            3. 其中的 HeaderExchangeHandler 会调用 DefaultFuture.sent() 方法更新 sent 字段，记录请求发送的时间戳，如果响应超时，则会将该发送时间戳添加到提示信息中；
+            4. 一段时间后，Consumer 会收到对端返回的响应，在读取到完整响应之后，会触发 Dubbo Channel 中各个 ChannelHandler 的 received() 方法；
+                例如：AllChannelHandler 子类会将后续 ChannelHandler.received() 方法的调用封装成任务提交到线程池中，响应会提交到 DefaultFuture 关联的线程池中。
+            5. 当响应传递到 HeaderExchangeHandler 的时候，会通过调用 handleResponse() 方法进行处理，其中调用了 DefaultFuture.received() 方法，将 DefaultFuture 设置为完成状态。
+            
+       2. HeaderExchangeHandler类： 
+             ExchangeHandler 的装饰器，其中维护了一个 ExchangeHandler 对象。
+             ExchangeHandler 接口是 Exchange 层与上层交互的接口之一，上层调用方可以实现该接口完成自身的功能；
+             然后再由 HeaderExchangeHandler 修饰，具备 Exchange 层处理 Request-Response 的能力。
+       
+                1.received()方法
+                    1. 只读请求会由handlerEvent() 方法进行处理，它会在 Channel 上设置 channel.readonly 标志；
+                    2. 双向请求由handleRequest() 方法进行处理，会先对解码失败的请求进行处理，返回异常响应；然后将正常解码的请求交给上层实现的 ExchangeHandler 进行处理，并添加回调。
+                    3. 单向请求直接委托给上层 ExchangeHandler 实现的 received() 方法进行处理，不关注结果；
+                    4. Response 的处理，通过handleResponse() 方法将关联的 DefaultFuture 设置为完成状态（或是异常完成状态）；
+                    5. 于 String 类型的消息，根据是否支持telnet，进行相应的处理
+             2. connected()、disconnected()、sent()、received()、caught() 方法最终都会转发给上层提供的 ExchangeHandler 进行处理
+       3. HeaderExchangeClient： Client 装饰器，主要是添加这两个功能：
+       
+            1. 维持与 Server 的长连状态，这是通过定时发送心跳消息实现的；
+            2. 在因故障掉线之后，进行重连，这是通过定时检查连接状态实现的。
+       4. HeaderExchangeServer：RemotingServer 的装饰器
+            
+            1. 定期关闭长时间空闲的连接
+       5. HeaderExchanger：是 Exchangers 这个门面类，用于获取具体的ExchangeClient或者ExchangeServer
+       
+            1. 在Transport 层的 Client 和 Server 实现基础之上，添加 HeaderExchangeClient 和 HeaderExchangeServer 装饰器。
+            2. 为上层实现的 ExchangeHandler 实例添加了 HeaderExchangeHandler 以及 DecodeHandler 两个修饰器；
+                
+            
       
 
