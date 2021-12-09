@@ -342,3 +342,24 @@
      4. Client 和 RemotingServer 两个接口：分别抽象了客户端和服务端，两者都继承了 Channel、Resetable 等接口，也就是说两者都具备了读写数据能力。
      5. Transporter 接口： 在 Client 和 Server 之上又封装了一层Transporter 接口，从而确定使用何种nio库，例如：Netty、Mina、Grizzly ；
      6. Transporters类：门面类，其中封装了 Transporter 对象的创建（通过 Dubbo SPI）以及 ChannelHandler 的处理
+3. Transport层
+    
+      1. AbstractServer 是对服务端的抽象，实现了服务端的公共逻辑。
+![image](https://user-images.githubusercontent.com/41152743/145171443-98b585fd-c1b8-420b-bb7b-42a90f302c8d.png)
+           1. org.apache.dubbo.remoting.transport.AbstractServer#AbstractServer，构造方法中根据url初始化参数，调用子类的doOpen()方法完成server的启动。
+      2. ExecutorRepository：负责创建并管理 Dubbo 中的线程池，默认实现DefaultExecutorRepository
+           1. 维护了一个 ConcurrentMap<String, ConcurrentMap<Integer, ExecutorService>> 集合（data 字段）缓存已有的线程池，
+                第一层 Key 值表示线程池属于 Provider 端还是 Consumer 端，第二层 Key 值表示线程池关联服务的端口。
+           2. org.apache.dubbo.common.threadpool.manager.DefaultExecutorRepository#createExecutor
+              ThreadPool 接口@SPI 注解修饰，默认使用 FixedThreadPool 实现，其中getExecutor() 方法被 @Adaptive 注解修饰，动态生成的适配器类会优先根据 URL 中的 threadpool 参数选择 ThreadPool 的扩展实现。dubbo支持的线程池：
+              fixed ：固定大小线程池，启动时建立线程，不关闭，一直持有。
+              cached： 缓存线程池，空闲一分钟自动删除，需要时重建。
+              limited： 可伸缩线程池，但池中的线程数只会增长不会收缩。
+              eager： 优先创建Worker线程池，在任务数量大于corePoolSize但是小于maximumPoolSize时，优先创建Worker来处理任务。当任务数量大于maximumPoolSize时，将任务放入阻塞队列中。阻塞队列充满时抛出RejectedExecutionException。
+      
+      
+      
+      
+      
+      
+
