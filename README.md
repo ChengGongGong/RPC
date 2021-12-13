@@ -503,6 +503,17 @@
              
              1. AbstractProtocol抽象类：没有实现 export() 方法，且refer()方法委托给protocolBindingRefer() 这个抽象方法，然后由子类实现，唯一实现 destory() 
 ![image](https://user-images.githubusercontent.com/41152743/145741731-7beff98c-4b94-4f09-8005-ce4673d473d6.png)
+             2. export流程-默认实现类DubboProtocol 
+                1. 创建ServiceKey；
+                2. 将上层传入的Invoker对象封装成DubboExporter对象，然后记录到exporterMap集合中
+                3. 服务端初始化
+![image](https://user-images.githubusercontent.com/41152743/145742155-31b4e540-c0a9-4558-a894-1fbeff8f01ad.png)
+                    1. 编解码时使用的 Codec2 接口实现实际上是 DubboCountCodec，其中维护了一个 DubboCodec 对象，编解码的能力都是 DubboCodec 提供的，
+                    2. ExchangeCodec 只处理了 Dubbo 协议的请求头，DubboCodec 则是通过继承的方式，在 ExchangeCodec 基础之上，添加了解析 Dubbo 消息体的功能。
+                    3. decodeBody() 中可以根据DECODE_IN_IO_THREAD_KEY 参数决定是否在 DubboCodec 中进行解码(IO线程中)，不在的话，则在DecodeHandler(Transport 层)的received() 方法也是可以进行解码的
+                    4. IO 线程内执行的 ChannelHandler 实现依次有：InternalEncoder、InternalDecoder（两者底层都是调用 DubboCodec）、IdleStateHandler、MultiMessageHandler、HeartbeatHandler 和 NettyServerHandler。
+                      非 IO 线程内执行的 ChannelHandler 实现依次有：DecodeHandler、HeaderExchangeHandler 和 DubboProtocol$requestHandler。
+                4. 
 
         4. ProxyFactory 接口：创建代理对象的工厂，扩展接口，其中 getProxy() 方法为 Invoker 创建代理对象，getInvoker() 方法将代理对象反向封装成 Invoker 对象。
         5. ProtocolServer 接口：对 RemotingServer 的一层简单封装；
