@@ -474,8 +474,25 @@
        5. HeaderExchanger：是 Exchangers 这个门面类，用于获取具体的ExchangeClient或者ExchangeServer
        
             1. 在Transport 层的 Client 和 Server 实现基础之上，添加 HeaderExchangeClient 和 HeaderExchangeServer 装饰器。
-            2. 为上层实现的 ExchangeHandler 实例添加了 HeaderExchangeHandler 以及 DecodeHandler 两个修饰器；
+            2. 为上层实现的 ExchangeHandler 实例添加了 HeaderExchangeHandler 以及 DecodeHandler 两个修饰
+ #### 6.Dubbo的RPC
+ 1. 包结构
+        
+        1. filter 包：在进行服务引用时会进行一系列的过滤，其中包括了很多过滤器；
+        2. listener 包：在服务发布和服务引用的过程中，添加一些 Listener 来监听相应的事件；
+        3. protocol 包：为 Protocol 接口的具体实现以及 Invoker 接口的具体实现提供一些公共逻辑。
+        4. proxy 包：提供了创建代理的能力；
+        5. support 包：包括了 RpcUtils 工具类、Mock 相关的 Protocol 实现以及 Invoker 实现
+ 2. 核心接口
+ 
+        1. Invoker 接口
+ ![image](https://user-images.githubusercontent.com/41152743/145740202-36b83222-ef08-4994-8c8a-6bf9b93c188e.png)
                 
-            
+  ![image](https://user-images.githubusercontent.com/41152743/145740282-0f99baf8-dbb3-4d9b-a23e-5ec25b9e4dec.png)
+               Provider逻辑调用：服务实现类被封装成为一个 AbstractProxyInvoker 实例，并新生成对应的 Exporter 实例，当 Dubbo Protocol 层收到一个请求之后，会找到这个 Exporter 实例，并调用其对应的 AbstractProxyInvoker 实例，从而完成 Provider 逻辑的调用
+               Invocation 接口：invoke() 方法的参数，抽象了一次 RPC 调用的目标服务和方法信息、相关参数信息、具体的参数值以及一些附加信息；
+               Result 接口：invoke() 方法的返回值，抽象了一次调用的返回值，包含了被调用方返回值（或是异常）以及附加信息，可以添加回调方法，在 RPC 调用方法结束时会触发这些回调。
+                    
+                    
       
 
