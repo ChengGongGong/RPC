@@ -489,10 +489,22 @@
  ![image](https://user-images.githubusercontent.com/41152743/145740202-36b83222-ef08-4994-8c8a-6bf9b93c188e.png)
                 
   ![image](https://user-images.githubusercontent.com/41152743/145740282-0f99baf8-dbb3-4d9b-a23e-5ec25b9e4dec.png)
-               Provider逻辑调用：服务实现类被封装成为一个 AbstractProxyInvoker 实例，并新生成对应的 Exporter 实例，当 Dubbo Protocol 层收到一个请求之后，会找到这个 Exporter 实例，并调用其对应的 AbstractProxyInvoker 实例，从而完成 Provider 逻辑的调用
-               Invocation 接口：invoke() 方法的参数，抽象了一次 RPC 调用的目标服务和方法信息、相关参数信息、具体的参数值以及一些附加信息；
-               Result 接口：invoke() 方法的返回值，抽象了一次调用的返回值，包含了被调用方返回值（或是异常）以及附加信息，可以添加回调方法，在 RPC 调用方法结束时会触发这些回调。
-                    
-                    
-      
+  
+             Provider逻辑调用：服务实现类被封装成为一个 AbstractProxyInvoker 实例，并新生成对应的 Exporter 实例，当 Dubbo Protocol 层收到一个请求之后，会找到这个 Exporter 实例，并调用其对应的 AbstractProxyInvoker 实例，从而完成 Provider 逻辑的调用
+             Invocation 接口：invoke() 方法的参数，抽象了一次 RPC 调用的目标服务和方法信息、相关参数信息、具体的参数值以及一些附加信息；
+             Result 接口：invoke() 方法的返回值，抽象了一次调用的返回值，包含了被调用方返回值（或是异常）以及附加信息，可以添加回调方法，在 RPC 调用方法结束时会触发这些回调。
+        2. Exporter 接口
+![image](https://user-images.githubusercontent.com/41152743/145740816-03c27754-1ca2-478b-9c55-f1c888c167cc.png)
+             
+             ExporterListener接口：扩展接口，但是 Dubbo 本身并没有提供什么有用的扩展实现，需要自己提供具体实现监听感兴趣的事情。 
+             InvokerListener接口：监听器，监听 Consumer 引用服务时触发的事件；
+        3. Protocol 接口        
+   ![image](https://user-images.githubusercontent.com/41152743/145741236-4b587e54-e096-4c22-a0bf-fabfee3d3cf8.png)
+             
+             1. AbstractProtocol抽象类：没有实现 export() 方法，且refer()方法委托给protocolBindingRefer() 这个抽象方法，然后由子类实现，唯一实现 destory() 
+![image](https://user-images.githubusercontent.com/41152743/145741731-7beff98c-4b94-4f09-8005-ce4673d473d6.png)
+
+        4. ProxyFactory 接口：创建代理对象的工厂，扩展接口，其中 getProxy() 方法为 Invoker 创建代理对象，getInvoker() 方法将代理对象反向封装成 Invoker 对象。
+        5. ProtocolServer 接口：对 RemotingServer 的一层简单封装；
+        6. Filter 接口：用来拦截 Dubbo 请求的，扩展接口
 
