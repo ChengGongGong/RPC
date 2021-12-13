@@ -493,6 +493,29 @@
              Provider逻辑调用：服务实现类被封装成为一个 AbstractProxyInvoker 实例，并新生成对应的 Exporter 实例，当 Dubbo Protocol 层收到一个请求之后，会找到这个 Exporter 实例，并调用其对应的 AbstractProxyInvoker 实例，从而完成 Provider 逻辑的调用
              Invocation 接口：invoke() 方法的参数，抽象了一次 RPC 调用的目标服务和方法信息、相关参数信息、具体的参数值以及一些附加信息；
              Result 接口：invoke() 方法的返回值，抽象了一次调用的返回值，包含了被调用方返回值（或是异常）以及附加信息，可以添加回调方法，在 RPC 调用方法结束时会触发这些回调。
+             1. AbstractInvoker接口
+![image](https://user-images.githubusercontent.com/41152743/145772590-d74d25aa-7f98-478c-8259-26b66118fee7.png)
+
+                org.apache.dubbo.rpc.protocol.AbstractInvoker#invoke方法：
+                1. 将传入的Invocation转换为RpcInvocation
+                2. 将attachment集合添加为Invocation的附加信息
+                3. 将RpcContext的附加信息添加为Invocation的附加信息
+                    1. RpcContext 是线程级别的上下文信息，每个线程绑定一个 RpcContext 对象，底层依赖 ThreadLocal 实现。
+                    2. 主要用于存储一个线程中一次请求的临时状态
+                4. 设置此次调用的模式，异步还是同步，如果是异步调用，需要添加一个唯一ID
+                5. 调用子类的doInvoke()方法
+                    1. oneway，请求方式是send()方法，不需要得到响应
+                    2. twoway，请求方式是request()方法，会创建 DefaultFuture 对象以及检测超时的定时任务
+                      1. 首先，根据不同的 InvokeMode 返回不同的线程池实现
+                        SYNC 表示同步模式，是 Dubbo 的默认调用模式，返回的线程池是 ThreadlessExecutor
+                        ASYNC 和 FUTURE表示异步模式，返回的线程池是根据URL选择对应的共享线程池
+                6. 调用流程总结：
+![image](https://user-images.githubusercontent.com/41152743/145785005-be85ad4e-2f36-4114-b6bb-33df3ec5613f.png)
+                  
+                    1.  Client 端发送请求时，创建对应的 DefaultFuture（包含请求 ID 等信息），然后依赖 Netty 的异步发送特性将请求发送到 Server 端，不会阻塞任何线程；
+                    2.  将 DefaultFuture 返回给上层，在这个返回过程中，DefaultFuture 会被封装成 AsyncRpcResult，同时也可以添加回调函数。
+                    3.  Client 端接收到响应结果的时候，会交给关联的线程池（ExecutorService）或是业务线程（使用 ThreadlessExecutor 场景）进行处理，得到真正的结果；
+                    4. 拿到真正的返回结果后，会将其设置到 DefaultFuture 中，并调用 complete() 方法将其设置为完成状态，此时会触发前面注册在 DefaulFuture 上的回调函数，执行回调逻辑。
         2. Exporter 接口
 ![image](https://user-images.githubusercontent.com/41152743/145740816-03c27754-1ca2-478b-9c55-f1c888c167cc.png)
              
@@ -522,7 +545,7 @@
                 2. 创建DubboInvoker对象并添加到集合中,org.apache.dubbo.rpc.protocol.dubbo.DubboProtocol#getClients，创建底层发送请求和接收响应的client集合
                     1. 共享连接的处理，会区分不同的网络地址，一个地址只建立固定数量的共享连接ReferenceCountExchangeClient，当引用次数减到 0 的时候，ExchangeClient 连接关闭；当引用次数未减到 0 的时候，底层的 ExchangeClient 不能关闭；在 ReferenceCountExchangeClient.close() 时，会创建一个 LazyConnectExchangeClient(“幽灵连接”)， 用于处理异常情况
                     2. 独享连接的处理，对每个service建立固定数量的client，每个client维护一个底层连接，根据 LAZY_CONNECT_KEY 参数决定创建LazyConnectExchangeClient 还是直接创建HeaderExchangeClient。
-             
+               3. 将DubboInvoker 对象封装成AsyncToSyncInvoker，负责将异步调用转换成同步调用    
         4. ProxyFactory 接口：创建代理对象的工厂，扩展接口，其中 getProxy() 方法为 Invoker 创建代理对象，getInvoker() 方法将代理对象反向封装成 Invoker 对象。
         5. ProtocolServer 接口：对 RemotingServer 的一层简单封装；
         6. Filter 接口：用来拦截 Dubbo 请求的，扩展接口
