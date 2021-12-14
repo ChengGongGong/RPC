@@ -547,6 +547,19 @@
                     2. 独享连接的处理，对每个service建立固定数量的client，每个client维护一个底层连接，根据 LAZY_CONNECT_KEY 参数决定创建LazyConnectExchangeClient 还是直接创建HeaderExchangeClient。
                3. 将DubboInvoker 对象封装成AsyncToSyncInvoker，负责将异步调用转换成同步调用    
         4. ProxyFactory 接口：创建代理对象的工厂，扩展接口，其中 getProxy() 方法为 Invoker 创建代理对象，getInvoker() 方法将代理对象反向封装成 Invoker 对象。
+            1. consumer服务调用时，通过动态代理将业务接口实现对象转化为相应的 Invoker 对象，然后在 Cluster 层、Protocol 层都会使用 Invoker；
+            2.  Provider 暴露服务的时候，通过动态代理实现 Invoker 对象与业务接口实现对象之间的转换；
+            3. org.apache.dubbo.common.bytecode.Proxy#getProxy()，采用new WeakHashMap<ClassLoader, Map<String, Object>>()缓存数据
+                1. 第一层key：ClassLoader 对象，第二层key：接口拼接而成
+                2. value：被缓存的代理类的 WeakReference（弱引用）。
+                3. WeakReference 的特性决定了它特别适合用于数据可恢复的内存型缓存
+            4. InvokerInvocationHandler：将代理类的方法委托给该类的invoke()方法处理
+            5. Wrapper：抽象类，是对 Java 类的一种包装，从类中的字段和方法抽象出相应 propertyName 和 methodName，需要调用一个字段或方法的时候，会根据传入的方法名和参数进行匹配，找到对应的字段和方法进行调用。
+![image](https://user-images.githubusercontent.com/41152743/145926475-0dbe04f1-f2f5-489f-8f6c-32f316b558b2.png)
+      
+            解释：
+              1. Consumer 端的 Proxy 底层屏蔽了复杂的网络交互、集群策略以及 Dubbo 内部的 Invoker 等概念，提供给上层使用的是业务接口；
+              2. Provider 端的 Wrapper 是将个性化的业务接口实现，统一转换成 Dubbo 内部的 Invoker 接口实现
         5. ProtocolServer 接口：对 RemotingServer 的一层简单封装；
         6. Filter 接口：用来拦截 Dubbo 请求的，扩展接口
 
