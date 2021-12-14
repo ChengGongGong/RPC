@@ -562,4 +562,32 @@
               2. Provider 端的 Wrapper 是将个性化的业务接口实现，统一转换成 Dubbo 内部的 Invoker 接口实现
         5. ProtocolServer 接口：对 RemotingServer 的一层简单封装；
         6. Filter 接口：用来拦截 Dubbo 请求的，扩展接口
+ #### 7.Dubbo的Cluster
+ 1. 核心组件
+ ![image](https://user-images.githubusercontent.com/41152743/145963819-b14ee763-3fda-4f43-b72c-088919a7e195.png)
+    
+    cluster接口：集群容错的接口，主要是在某些 Provider 节点发生故障时，让 Consumer 的调用请求能够发送到正常的 Provider 节点；
+    Directory 接口：表示多个 Invoker 的集合，是后续路由规则、负载均衡策略以及集群容错的基础。
+    Router 接口：请求经过 Router 的时候，会按照用户指定的规则匹配出符合条件的 Provider。
+    LoadBalance 接口：负载均衡接口，Consumer 会按照指定的负载均衡策略，从 Provider 集合中选出一个最合适的 Provider 节点来处理请求。
+    核心流程：
+        1. 当调用进入 Cluster 的时候，Cluster 会创建一个 AbstractClusterInvoker 对象；
+        2. 首先，在这个 AbstractClusterInvoker 中，会从 Directory 中获取当前 Invoker 集合；
+        3. 然后，按照 Router 集合进行路由，得到符合条件的 Invoker 集合；
+        4. 接着，按照 LoadBalance 指定的负载均衡策略得到最终要调用的 Invoker 对象。
+2. Directory 接口
+ ![image](https://user-images.githubusercontent.com/41152743/145966533-273acccf-c9f0-4476-82b8-87a8baf47c0a.png)
+
+  1. AbstractDirectory抽象类：维护了 Consumer 端的 URL 信息和 RouterChain 对象，用于记录当前使用的 Router 对象集合，list()方法委托给子类的doList()方法
+  2. StaticDirectory 实现：维护的 Invoker 集合则是静态的，在 StaticDirectory 对象创建完成之后，不会再发生变化。
+      创建 StaticDirectory 对象的时候，如果没有传入 RouterChain 对象，则会根据 URL 构造一个包含内置 Router 的 RouterChain 对象，buildRouterChain()
+  3.  RegistryDirectory实现：维护的 Invoker 集合会随着注册中心中维护的注册信息动态发生变化，实现了 NotifyListener 接口，当注册中心的服务配置发生变化时，RegistryDirectory 会收到变更通知，根据注册中心推送的通知，动态增删底层 Invoker 集合。
+
+        1. org.apache.dubbo.registry.integration.RegistryDirectory#subscribe，当Consumer 进行订阅的时候被调用，同时将 NotifyListener 监听器添加到 Registry ；
+        2. org.apache.dubbo.registry.integration.RegistryDirectory#notify，按照 category 对发生变化的 URL 进行分类，分成 configurators、routers、providers 三类：
+            1. 将 configurators 类型的 URL 转化为 Configurator，保存到 configurators 字段中；
+            2. 将 router 类型的 URL 转化为 Router，并通过 routerChain.addRouters() 方法添加 routerChain 中保存；
+            3. 将 provider 类型的 URL 转化为 Invoker 对象(核心是调用Protocol.refer() 方法创建 Invoker 对象)，并记录到 invokers 集合和 urlInvokerMap 集合中。
+        3. org.apache.dubbo.registry.integration.RegistryDirectory#doList，通过RouterChain.route()方法筛选Invoker集合，最终得到符合路由条件的Invoker集合。
+  
 
