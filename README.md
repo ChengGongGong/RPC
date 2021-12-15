@@ -589,5 +589,18 @@
             2. 将 router 类型的 URL 转化为 Router，并通过 routerChain.addRouters() 方法添加 routerChain 中保存；
             3. 将 provider 类型的 URL 转化为 Invoker 对象(核心是调用Protocol.refer() 方法创建 Invoker 对象)，并记录到 invokers 集合和 urlInvokerMap 集合中。
         3. org.apache.dubbo.registry.integration.RegistryDirectory#doList，通过RouterChain.route()方法筛选Invoker集合，最终得到符合路由条件的Invoker集合。
-  
+3. Router 接口：根据用户配置的路由规则以及请求携带的信息，过滤出符合条件的 Invoker 集合，供后续负载均衡逻辑使用
+
+    1. RouterChain类：在该类构造函数中，在传入的URL参数中查找router参数值，根据该值获取确定激活的 RouterFactory，通过 Dubbo SPI 机制加载这些激活的 RouterFactory 对象，由 RouterFactory 创建当前激活的内置 Router 实例。
+    2. RouterFactory 接口：一个扩展接口， 动态生成的适配器会根据protocol参数选择扩展实现；
+    3. Router接口：决定了一次 Dubbo 调用的目标服务，每个实现类代表了一个路由规则：
+        1. ConditionRouter：基于条件表达式的路由实现类
+        2. ScriptRouter：支持 JDK 脚本引擎的所有脚本，
+        3. FileRouterFactory：ScriptRouterFactory 的装饰器，在此基础上增加了读取文件的能力。
+        4. TagRouter： 将某一个或多个服务的提供者划分到同一个分组，约束流量只在指定分组中流转，从而实现流量隔离的目的。因此，携带 Tag 的请求可以降级访问到无 Tag 的 Provider，但不携带 Tag 的请求永远无法访问到带有 Tag 的 Provider
+              提供了动态和静态两种方式给 Provider 打标签：
+                  动态打标：服务治理平台动态下发标签
+                  静态打标：在 XML 等静态配置中打标签。
+              Consumer端：可以在 RpcContext 的 attachment 中添加 request.tag 附加属性
+            
 
