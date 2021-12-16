@@ -52,41 +52,37 @@
     
     provider:
     
-        dubbo%3A%2F%2F10.144.200.140%3A20881%2Fcom.xxx.service.xxxService%3F
+        dubbo://172.17.108.185:20880/org.apache.dubbo.demo.DemoService?
        
-        anyhost%3Dtrue%26
-       
-       application%3Dxxx-provider%26
-       
-       deprecated%3Dfalse%26
-       
-       dispatcher%3Dmessage%26
-       
-       dubbo%3D2.0.2%26
-       
-       dynamic%3Dtrue%26
-       
-       generic%3Dfalse%26
-       
-       interface%3Dcom.xxx.service.xxxService%26
-       
-       methods%3DgetXxx%2C%2CfindXxx%26
-       
-       pid%3D38399%26
-       
-       release%3D2.7.6%26
-       
-       revision%3D2.0.0%26
-       
-       side%3Dprovider%26
-       
-       threads%3D500%26
-       
-       timeout%3D3000%26
-       
-       timestamp%3D1635855876799%26
-       
-       version%3D2.0.0,
+        anyhost=true
+
+        &application=dubbo-demo-api-provider
+
+        &bind.ip=172.17.108.185
+
+        &bind.port=20880
+
+        &default=true
+
+        &deprecated=false
+
+        &dubbo=2.0.2
+
+        &dynamic=true
+
+        &generic=false
+
+        &interface=org.apache.dubbo.demo.DemoService
+
+        &methods=sayHello,sayHelloAsync
+
+        &pid=3918
+
+        &release=
+
+        &side=provider
+
+        &timestamp=1600437404483
     
 2. 在订阅服务中的应用(Consumer)
 
