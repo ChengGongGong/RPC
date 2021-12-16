@@ -50,7 +50,7 @@
 
     org.apache.dubbo.registry.zookeeper.ZookeeperRegistry#doRegister
     
-    provider:
+    provider:org.apache.dubbo.config.bootstrap.DubboBootstrap#start方法中完成服务url的组装-doExportUrlsFor1Protocol() 
     
         dubbo://172.17.108.185:20880/org.apache.dubbo.demo.DemoService?
        
