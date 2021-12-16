@@ -603,4 +603,20 @@
                   静态打标：在 XML 等静态配置中打标签。
               Consumer端：可以在 RpcContext 的 attachment 中添加 request.tag 附加属性
             
+4.负载均衡LoadBalance接口
 
+    1. 基于 Hash 一致性的 ConsistentHashLoadBalance；
+    2. 基于权重随机算法的 RandomLoadBalance；
+    3. 基于最少活跃调用数算法的 LeastActiveLoadBalance；
+    4. 基于加权轮询算法的 RoundRobinLoadBalance:适用于集群中所有 Provider 节点性能相近的场景
+    5. 基于最短响应时间的 ShortestResponseLoadBalance 。
+5. 集群容错-Cluster接口
+
+     Failover Cluster：失败自动切换。Dubbo 的默认容错机制，在请求一个 Provider 节点失败的时候，自动切换其他 Provider 节点，默认执行 3 次，适合幂等操作。当然，重试次数越多，在故障容错的时候带给 Provider 的压力就越大，在极端情况下甚至可能造成雪崩式的问题。
+    Failback Cluster：失败自动恢复。失败后记录到队列中，通过定时器重试。
+    Failfast Cluster：快速失败。请求失败后返回异常，不进行任何重试。
+    Failsafe Cluster：失败安全。请求失败后忽略异常，不进行任何重试。
+    Forking Cluster：并行调用多个 Provider 节点，只要有一个成功就返回。
+    Broadcast Cluster：广播多个 Provider 节点，只要有一个节点失败就失败。
+    Available Cluster：遍历所有的 Provider 节点，找到每一个可用的节点，就直接调用。如果没有可用的 Provider 节点，则直接抛出异常。
+    Mergeable Cluster：请求多个 Provider 节点并将得到的结果进行合并。
